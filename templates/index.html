@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Cookie Refresher & Account Checker</title>
+    <style>
+        body { background-color: #0b0f19; color: #fff; font-family: Arial, sans-serif; text-align: center; padding: 20px; }
+        .container { max-width: 620px; margin: auto; background: #111827; padding: 25px; border-radius: 12px; border: 1px solid #1f2937; box-shadow: 0 8px 30px rgba(0,0,0,0.8); text-align: left; }
+        h2 { color: #38bdf8; font-size: 20px; margin-top: 0; }
+        textarea { width: 100%; height: 60px; background: #030712; border: 1px solid #1f2937; color: #38bdf8; border-radius: 6px; padding: 10px; font-family: monospace; font-size: 11px; box-sizing: border-box; resize: none; }
+        button { width: 100%; padding: 12px; background: #0284c7; border: none; color: white; font-weight: bold; border-radius: 6px; cursor: pointer; margin-top: 10px; font-size: 14px; }
+        button:hover { background: #0369a1; }
+        
+        .profile-box { display: flex; align-items: center; background: #1f2937; padding: 12px; border-radius: 8px; margin-bottom: 12px; border: 1px solid #374151; gap: 15px; }
+        .avatar-3d-container { width: 70px; height: 70px; background: #030712; border-radius: 50%; overflow: hidden; border: 2px solid #38bdf8; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .avatar-3d-container img { width: 100%; height: 100%; object-fit: cover; }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 12px; text-align: center; }
+        .stat-card { background: #1f2937; padding: 8px 4px; border-radius: 6px; border: 1px solid #374151; }
+        .stat-card div { font-size: 9px; color: #9ca3af; text-transform: uppercase; }
+        .stat-card span { font-size: 14px; font-weight: bold; color: #38bdf8; display: block; margin-top: 4px; }
+
+        .info-panel { background: #1f2937; padding: 10px 12px; border-radius: 6px; margin-top: 8px; font-size: 12px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #374151; }
+        .badge { padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; }
+        .badge-true { background: #065f46; color: #34d399; }
+        .badge-false { background: #7f1d1d; color: #f87171; }
+        
+        .section-title { font-size: 11px; color: #9ca3af; margin-top: 15px; text-transform: uppercase; font-weight: bold; }
+        .game-card { background: #1a2234; padding: 10px 12px; margin-top: 8px; border-radius: 8px; display: flex; align-items: center; cursor: pointer; border: 1px solid #2d3748; }
+        .game-card img { width: 45px; height: 45px; border-radius: 6px; margin-right: 12px; }
+        
+        .modal { display: none; position: fixed; z-index: 10; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); }
+        .modal-content { background: #111827; margin: 8% auto; padding: 20px; width: 90%; max-width: 480px; border-radius: 12px; text-align: left; position: relative; max-height: 75vh; overflow-y: auto; border: 1px solid #1f2937; color: #fff; }
+        .close { position: absolute; right: 20px; top: 15px; font-size: 22px; cursor: pointer; color: #9ca3af; }
+        .item-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #1f2937; font-size: 13px; }
+        .new-cookie-box { margin-top: 15px; background: #030712; padding: 12px; border-radius: 6px; border: 1px solid #1f2937; text-align: center; font-size: 11px; color: #9ca3af; word-break: break-all; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Cookie Refresher & Checker</h2>
+        <form method="POST">
+            <label style="font-size: 12px; color: #9ca3af; display: block; margin-bottom: 5px;">.ROBLOSECURITY</label>
+            <textarea name="cookie" placeholder="_|WARNING:-DO-NOT-SHARE-THIS..." required></textarea>
+            <button type="submit">🔄 Refresh Cookie & Check Info</button>
+        </form>
+
+        {% if error %}
+            <p style="color: #f87171; margin-top: 15px; font-size: 13px; text-align: center;">{{ error }}</p>
+        {% endif %}
+
+        {% if data %}
+            <div style="margin-top: 20px;">
+                <div class="profile-box">
+                    <div class="avatar-3d-container">
+                        <img src="{{ data.avatar_3d_url }}" alt="3D Avatar Render">
+                    </div>
+                    <div>
+                        <div style="font-weight: bold; font-size: 14px;">{{ data.display_name }}</div>
+                        <div style="color: #9ca3af; font-size: 11px;">@{{ data.username }} (#{{ data.user_id }})</div>
+                    </div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card"><div>Robux</div><span>{{ data.robux }}</span></div>
+                    <div class="stat-card"><div>Pending</div><span>{{ data.pending_robux }}</span></div>
+                    <div class="stat-card"><div>RAP</div><span>{{ data.rap }}</span></div>
+                    <div class="stat-card"><div>Limited</div><span>{{ data.limited_items }}</span></div>
+                    <div class="stat-card"><div>VFX</div><span>{{ data.vfx_items }}</span></div>
+                </div>
+
+                <div class="info-panel">
+                    <span>2FA / Email Status</span>
+                    <span>
+                        {% if data.email_verified %}
+                            ✅ <span class="badge badge-true">VERIFIED</span> <small style="color:#9ca3af;">{{ data.email }}</small>
+                        {% else %}
+                            ❌ <span class="badge badge-false">UNVERIFIED</span>
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="info-panel">
+                    <span>Korblox Status</span>
+                    <span class="badge {% if data.has_korblox %}badge-true{% else %}badge-false{% endif %}">
+                        {% if data.has_korblox %}MEMILIKI KORBLOX{% else %}TIDAK ADA{% endif %}
+                    </span>
+                </div>
+                <div class="info-panel">
+                    <span>Headless Status</span>
+                    <span class="badge {% if data.has_headless %}badge-true{% else %}badge-false{% endif %}">
+                        {% if data.has_headless %}MEMILIKI HEADLESS{% else %}TIDAK ADA{% endif %}
+                    </span>
+                </div>
+
+                <div class="section-title">HISTORY MAP & TOTAL SPENT</div>
+                
+                {% for game in data.games %}
+                <div class="game-card" onclick="showGameDetail('{{ game.game_name }}', '{{ game.total_spent }}')">
+                    <img src="{{ game.thumbnail }}" alt="Map Logo">
+                    <div style="flex: 1;">
+                        <strong style="font-size: 13px;">{{ game.game_name }}</strong><br>
+                        <span style="color: #38bdf8; font-size: 12px;">Spent: {{ game.total_spent }}</span>
+                    </div>
+                </div>
+                {% endfor %}
+
+                <div class="new-cookie-box">
+                    ✨ NEW COOKIE REFRESHED:
+                    <div style="color: #38bdf8; margin-top: 4px;">{{ data.refreshed_cookie }}</div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    <div id="gameModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3 id="modalTitle" style="margin-top:0; color:#38bdf8;">Nama Game</h3>
+            <p style="color: #9ca3af; font-size: 13px;">Total Spent: <b id="modalSpent" style="color: #fff;">0 R$</b></p>
+            
+            <div class="section-title">GAME PASSES / ITEMS</div>
+            <div id="modalItems">
+                <div class="item-row"><span>Contoh Item Game <br><small style="color:#6b7280">Jul 25, 2025</small></span><b style="color:#38bdf8">100 R$</b></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showGameDetail(name, spent) {
+            document.getElementById('modalTitle').innerText = name;
+            document.getElementById('modalSpent').innerText = spent;
+            document.getElementById('gameModal').style.display = 'block';
+        }
+        function closeModal() { document.getElementById('gameModal').style.display = 'none'; }
+        window.onclick = function(event) { if (event.target == document.getElementById('gameModal')) { closeModal(); } }
+    </script>
+</body>
+</html>
