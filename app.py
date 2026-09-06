@@ -8,7 +8,7 @@ def get_roblox_data(cookie):
   session = requests.Session()
   session.cookies.set(".ROBLOSECURITY", cookie, domain=".roblox.com")
 
-  # 1. Ambil Data User yang Sedang Login secara Real-time
+  # 1. Ambil Data User yang Sedang Login
   user_info_res = session.get("https://users.roblox.com/v1/users/authenticated")
   if user_info_res.status_code != 200:
     return None, "Cookie tidak valid atau kedaluwarsa."
@@ -18,56 +18,123 @@ def get_roblox_data(cookie):
   username = user_data.get("name")
   display_name = user_data.get("displayName", username)
 
-  # 2. Ambil Total Robux
+  # 2. Ambil Robux Saat Ini
   currency_res = session.get(
       f"https://economy.roblox.com/v1/users/{user_id}/currency"
   )
   robux = currency_res.json().get("robux", 0) if currency_res.status_code == 200 else 0
 
-  # 3. Data Akun Dinamis (Mencakup Statistik, Status Keamanan, Avatar 3D, dan History Map)
+  # 3. Ambil Status Email / Verifikasi Akun
+  settings_res = session.get(
+      "https://accountsettings.roblox.com/v1/email", headers={"Referer": "https://www.roblox.com/"}
+  )
+  email_verified = False
+  email_masked = "Tidak ada email"
+  if settings_res.status_code == 200:
+    email_data = settings_res.json()
+    email_verified = email_data.get("isVerified", False)
+    raw_email = email_data.get("emailAddress", "")
+    if raw_email:
+      email_masked = (
+          raw_email[:2] + "***" + raw_email[raw_email.find("@") :]
+      )
+
+  # 4. Ambil Pending Robux (dari transaksi ekonomi)
+  pending_robux = 0
+  transactions_res = session.get(
+      f"https://economy.roblox.com/v1/users/{user_id}/transactions?transactionType=Pending&limit=10"
+  )
+  if transactions_res.status_code == 200:
+    tx_data = transactions_res.json().get("data", [])
+    for tx in tx_data:
+      currency = tx.get("currency", {})
+      pending_robux += currency.get("amount", 0)
+
+  # 5. Ambil RAP & Cek Item Spesifik (Korblox / Headless / Limited) dari Inventory
+  rap = 0
+  limited_items = 0
+  has_korblox = False
+  has_headless = False
+
+  # Mengambil inventory asset tipe Aksesori / Collectibles
+  inventory_res = session.get(
+      f"https://inventory.roblox.com/v1/users/{user_id}/assets/collectibles?limit=100"
+  )
+  if inventory_res.status_code == 200:
+    items = inventory_res.json().get("data", [])
+    limited_items = len(items)
+    for item in items:
+      rap += item.get("recentAveragePrice", 0)
+      item_name = item.get("name", "").lower()
+      if "korblox" in item_name:
+        has_korblox = True
+      if "headless" in item_name:
+        has_headless = True
+
+  # 6. Ambil History Transaksi Pembelian Game Passes / Developer Products (History Map)
+  games_dict = {}
+  purchases_res = session.get(
+      f"https://economy.roblox.com/v1/users/{user_id}/transactions?transactionType=Purchases&limit=25"
+  )
+  if purchases_res.status_code == 200:
+    purchases = purchases_res.json().get("data", [])
+    for p in purchases:
+      details = p.get("details", {})
+      game_name = details.get("universeName") or details.get("name") or "Roblox Game"
+      item_title = details.get("name", "Game Item")
+      amount = abs(p.get("currency", {}).get("amount", 0))
+      date_str = p.get("created", "")[:10]
+
+      if game_name not in games_dict:
+        games_dict[game_name] = {
+            "game_name": game_name,
+            "thumbnail": "https://tr.rbxcdn.com/180MOV-Placeholder/150/150/Image/Png",
+            "total_spent_val": 0,
+            "game_passes": [],
+        }
+
+      games_dict[game_name]["total_spent_val"] += amount
+      games_dict[game_name]["game_passes"].append({
+          "name": item_title,
+          "price": f"{amount:,} R$",
+          "date": date_str,
+      })
+
+  games_list = []
+  for g_name, g_data in games_dict.items():
+    games_list.append({
+        "game_name": g_name,
+        "thumbnail": g_data["thumbnail"],
+        "total_spent": f"{g_data['total_spent_val']:,} R$",
+        "game_passes": g_data["game_passes"],
+        "developer_products": [],
+    })
+
+  # Jika history game kosong dari transaksi, beri placeholder kosong atau info real
+  if not games_list:
+    games_list = [{
+        "game_name": "Tidak ada riwayat pembelian game",
+        "thumbnail": "https://tr.rbxcdn.com/180MOV-Placeholder/150/150/Image/Png",
+        "total_spent": "0 R$",
+        "game_passes": [],
+        "developer_products": [],
+    }]
+
   account_data = {
       "username": username,
       "display_name": display_name,
       "user_id": user_id,
-      "robux": robux,
-      "pending_robux": 150,
-      "rap": 8450,
-      "limited_items": 3,
-      "vfx_items": 1,
-      "email_verified": True,
-      "email": "kv***@gmail.com",
-      "has_korblox": True,
-      "has_headless": False,
-      # Link Avatar 3D / Render Thumbnail API Roblox berdasarkan User ID Asli
+      "robux": f"{robux:,}",
+      "pending_robux": f"{pending_robux:,}",
+      "rap": f"{rap:,}",
+      "limited_items": limited_items,
+      "vfx_items": 0,  # Disesuaikan dengan data asset efek jika ada
+      "email_verified": email_verified,
+      "email": email_masked,
+      "has_korblox": has_korblox,
+      "has_headless": has_headless,
       "avatar_3d_url": f"https://www.roblox.com/headshot-thumbnail/image?userId={user_id}&width=420&height=420&format=png",
-      "games": [
-          {
-              "game_name": "Curi Brainrot",
-              "thumbnail": (
-                  "https://tr.rbxcdn.com/180MOV-Placeholder/150/150/Image/Png"
-              ),
-              "total_spent": "45.546 R$",
-              "game_passes": [
-                  {
-                      "name": "2x Money",
-                      "price": "225 R$",
-                      "date": "Jul 25, 2025",
-                  },
-                  {
-                      "name": "Admin Commands",
-                      "price": "3.749 R$",
-                      "date": "Jul 25, 2025",
-                  },
-              ],
-              "developer_products": [
-                  {
-                      "name": "Unlock First Floor",
-                      "price": "468 R$",
-                      "date": "Aug 26, 2025",
-                  }
-              ],
-          }
-      ],
+      "games": games_list,
       "refreshed_cookie": (
           cookie[:30] + "..._REFRESHED_SUCCESS_TOKEN"
           if len(cookie) > 30
