@@ -8,6 +8,15 @@ def get_roblox_data(cookie):
   session = requests.Session()
   session.cookies.set(".ROBLOSECURITY", cookie, domain=".roblox.com")
 
+  # Tambahkan Headers standar browser agar tidak dianggap bot/diblokir oleh Roblox
+  session.headers.update({
+      "User-Agent": (
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,"
+          " like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      ),
+      "Referer": "https://www.roblox.com/",
+  })
+
   # 1. Ambil Data User yang Sedang Login
   user_info_res = session.get("https://users.roblox.com/v1/users/authenticated")
   if user_info_res.status_code != 200:
@@ -25,11 +34,9 @@ def get_roblox_data(cookie):
   robux = currency_res.json().get("robux", 0) if currency_res.status_code == 200 else 0
 
   # 3. Ambil Status Email / Verifikasi Akun
-  settings_res = session.get(
-      "https://accountsettings.roblox.com/v1/email", headers={"Referer": "https://www.roblox.com/"}
-  )
   email_verified = False
-  email_masked = "Tidak ada email"
+  email_masked = "Tidak terverifikasi"
+  settings_res = session.get("https://accountsettings.roblox.com/v1/email")
   if settings_res.status_code == 200:
     email_data = settings_res.json()
     email_verified = email_data.get("isVerified", False)
@@ -39,7 +46,7 @@ def get_roblox_data(cookie):
           raw_email[:2] + "***" + raw_email[raw_email.find("@") :]
       )
 
-  # 4. Ambil Pending Robux (dari transaksi ekonomi)
+  # 4. Ambil Pending Robux
   pending_robux = 0
   transactions_res = session.get(
       f"https://economy.roblox.com/v1/users/{user_id}/transactions?transactionType=Pending&limit=10"
@@ -50,13 +57,12 @@ def get_roblox_data(cookie):
       currency = tx.get("currency", {})
       pending_robux += currency.get("amount", 0)
 
-  # 5. Ambil RAP & Cek Item Spesifik (Korblox / Headless / Limited) dari Inventory
+  # 5. Ambil RAP & Cek Item (Korblox / Headless)
   rap = 0
   limited_items = 0
   has_korblox = False
   has_headless = False
 
-  # Mengambil inventory asset tipe Aksesori / Collectibles
   inventory_res = session.get(
       f"https://inventory.roblox.com/v1/users/{user_id}/assets/collectibles?limit=100"
   )
@@ -71,7 +77,7 @@ def get_roblox_data(cookie):
       if "headless" in item_name:
         has_headless = True
 
-  # 6. Ambil History Transaksi Pembelian Game Passes / Developer Products (History Map)
+  # 6. Ambil History Transaksi Game Passes
   games_dict = {}
   purchases_res = session.get(
       f"https://economy.roblox.com/v1/users/{user_id}/transactions?transactionType=Purchases&limit=25"
@@ -80,7 +86,9 @@ def get_roblox_data(cookie):
     purchases = purchases_res.json().get("data", [])
     for p in purchases:
       details = p.get("details", {})
-      game_name = details.get("universeName") or details.get("name") or "Roblox Game"
+      game_name = (
+          details.get("universeName") or details.get("name") or "Roblox Game"
+      )
       item_title = details.get("name", "Game Item")
       amount = abs(p.get("currency", {}).get("amount", 0))
       date_str = p.get("created", "")[:10]
@@ -88,7 +96,9 @@ def get_roblox_data(cookie):
       if game_name not in games_dict:
         games_dict[game_name] = {
             "game_name": game_name,
-            "thumbnail": "https://tr.rbxcdn.com/180MOV-Placeholder/150/150/Image/Png",
+            "thumbnail": (
+                "https://tr.rbxcdn.com/180MOV-Placeholder/150/150/Image/Png"
+            ),
             "total_spent_val": 0,
             "game_passes": [],
         }
@@ -110,7 +120,6 @@ def get_roblox_data(cookie):
         "developer_products": [],
     })
 
-  # Jika history game kosong dari transaksi, beri placeholder kosong atau info real
   if not games_list:
     games_list = [{
         "game_name": "Tidak ada riwayat pembelian game",
@@ -128,7 +137,7 @@ def get_roblox_data(cookie):
       "pending_robux": f"{pending_robux:,}",
       "rap": f"{rap:,}",
       "limited_items": limited_items,
-      "vfx_items": 0,  # Disesuaikan dengan data asset efek jika ada
+      "vfx_items": 0,
       "email_verified": email_verified,
       "email": email_masked,
       "has_korblox": has_korblox,
